@@ -1,6 +1,9 @@
 # build directories
 build*/
 
+#plan
+plans*/
+
 # VS Code settings
 .vscode/
 

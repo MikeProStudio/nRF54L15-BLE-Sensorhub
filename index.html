@@ -3,352 +3,1030 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XIAO Sensor Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>XIAO nRF54L15 Dashboard</title>
+    <!-- Chart.js REMOVED – Canvas 2D renderers for all charts (zero-overhead) -->
     <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --success: #10b981;
-            --danger: #ef4444;
-            --border-radius: 16px;
-            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+            background: #000;
+            color: #00ff41;
             min-height: 100vh;
-            margin: 0;
-            padding: 40px 20px;
-            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Matrix rain background */
+        #matrix-bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            opacity: 0.18;
+            pointer-events: none;
+            will-change: transform;
         }
 
         .container {
-            background-color: var(--card-bg);
-            padding: 40px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            width: 100%;
-            max-width: 800px;
+            position: relative;
+            z-index: 1;
+            background: rgba(0, 10, 0, 0.92);
+            /* backdrop-filter: blur removed – saved 2-5ms/frame GPU compositing */
+            padding: 25px;
+            border-radius: 4px;
+            width: 95%;
+            max-width: 820px;
+            box-shadow: 0 0 40px rgba(0,255,65,0.15), inset 0 0 60px rgba(0,0,0,0.5);
+            border: 1px solid rgba(0,255,65,0.25);
         }
 
         h1 {
-            margin: 0 0 8px 0;
-            font-size: 28px;
             text-align: center;
+            margin-bottom: 20px;
+            font-weight: 400;
+            font-size: 1.4rem;
+            letter-spacing: 4px;
+            color: #00ff41;
+            text-shadow: 0 0 20px rgba(0,255,65,0.8), 0 0 40px rgba(0,255,65,0.4);
         }
 
-        .subtitle {
-            color: var(--text-muted);
-            text-align: center;
-            margin-bottom: 32px;
-        }
+        .btn-container { display: flex; gap: 10px; margin-bottom: 15px; }
 
         button {
-            border: none;
-            padding: 14px 24px;
-            font-size: 16px;
+            flex: 1;
+            padding: 12px;
+            border-radius: 3px;
+            border: 1px solid #00ff41;
+            background: rgba(0,255,65,0.08);
+            color: #00ff41;
+            font-family: inherit;
             font-weight: 600;
-            border-radius: 8px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            width: 100%;
-            margin-bottom: 16px;
-            background-color: var(--primary);
-            color: white;
+            font-size: 13px;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+            text-shadow: 0 0 8px rgba(0,255,65,0.6);
         }
-        
-        button:hover:not(:disabled) { background-color: var(--primary-hover); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover { background: rgba(0,255,65,0.2); box-shadow: 0 0 20px rgba(0,255,65,0.3); }
+        button#disconnect-btn {
+            border-color: #ff3333;
+            color: #ff3333;
+            background: rgba(255,50,50,0.08);
+            text-shadow: 0 0 8px rgba(255,50,50,0.6);
+            display: none;
+        }
+        button#disconnect-btn:hover { background: rgba(255,50,50,0.2); }
 
-        .btn-danger { background-color: var(--danger); }
-        .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
-
-        .status-badge {
+        #status {
             text-align: center;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: #334155;
-            color: var(--text-muted);
-            font-weight: 600;
-            margin-bottom: 32px;
+            margin: 10px 0;
+            font-size: 11px;
+            color: #006620;
+            letter-spacing: 2px;
         }
-        .status-badge.connected { background-color: #064e3b; color: var(--success); }
+        #status.connected { color: #00ff41; text-shadow: 0 0 10px rgba(0,255,65,0.7); }
 
-        .widget {
-            background-color: #0f172a;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 24px;
-            border: 1px solid #334155;
+        .dashboard { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+
+        .panel {
+            background: rgba(0, 8, 0, 0.7);
+            border-radius: 3px;
+            padding: 14px;
+            border: 1px solid rgba(0,255,65,0.15);
         }
+        .panel:hover { border-color: rgba(0,255,65,0.35); }
 
-        .widget h3 {
-            margin: 0 0 16px 0;
-            font-size: 16px;
-            color: var(--text-muted);
+        .panel-title {
+            font-size: 11px;
+            color: #00bb30;
+            margin-bottom: 10px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 3px;
         }
 
-        .raw-log {
-            font-family: monospace;
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 20px;
-            word-wrap: break-word;
+        .chart-wrapper { position: relative; height: 240px; width: 100%; contain: content; }
+
+        .chart-wrapper canvas {
+            width: 100% !important;
+            height: 100% !important;
+            border-radius: 2px;
+            will-change: transform;   /* GPU layer promotion */
+        }
+
+        .waterfall-wrapper {
+            position: relative;
+            height: 240px;
+            width: 100%;
+            background: #000;
+            border-radius: 3px;
+            overflow: hidden;
+            contain: content;
+        }
+        #waterfall-canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            will-change: transform;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .stat-box {
+            background: rgba(0,255,65,0.04);
+            border: 1px solid rgba(0,255,65,0.15);
+            border-radius: 3px;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-value { font-size: 18px; font-weight: 400; color: #00ff41; text-shadow: 0 0 10px rgba(0,255,65,0.5); }
+        .stat-label { font-size: 9px; color: #006620; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+        /* RMS Bar */
+        .rms-container { margin-top: 10px; }
+        .rms-bar-bg { width: 100%; height: 8px; background: rgba(0,255,65,0.08); border-radius: 2px; overflow: hidden; border: 1px solid rgba(0,255,65,0.15); }
+        .rms-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff41, #39ff14, #ccff00);
+            border-radius: 2px;
+            min-width: 2px;
+            /* transition removed – was forcing continuous 60fps layout reflow */
+        }
+        .rms-text { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: #006620; }
+
+        /* CSS-only fire strip - positioned at bottom, transparent background */
+        #fire-strip {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: var(--fire-height, 150px);
+            z-index: 10;
+            pointer-events: none;
+            display: none;
+            overflow: hidden;
+            mix-blend-mode: screen;
+            will-change: transform, contents;
+            contain: layout style;
+        }
+
+        .fire {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .fire::before,
+        .fire::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+        }
+
+        .fire::before {
+            content: "";
+            background-image: var(--glitter), var(--glitter),
+                linear-gradient(
+                    0deg,
+                    white 0px,
+                    #ff8951 5px,
+                    #dcbc169c 30%,
+                    transparent 70%
+                ),
+                radial-gradient(ellipse at bottom, transparent 30%, black 60%);
+            background-size: 350px 500px, 400px 650px, 100% 100%, 100% 100%;
+            background-blend-mode: hard-light, color-dodge, multiply;
+            background-position: 0px 0px, 0px 0px, center bottom, center center;
+            background-repeat: repeat, repeat, repeat, no-repeat;
+            mix-blend-mode: color-dodge;
+            filter: brightness(3.7) blur(7px) contrast(6);
+            animation: fire 1.75s linear infinite;
+            box-shadow: inset 0 -40px 50px -60px #63bbc5;
+        }
+
+        @keyframes fire {
+            0% {
+                background-position: center 0px, center 0px, 50% 100%, center center;
+            }
+            100% {
+                background-position: center -500px, center -650px, 50% 100%, center center;
+            }
+        }
+
+        :root {
+            --glitter: url("https://assets.codepen.io/13471/silver-glitter-background.png");
+            --fire-height: 150px;
         }
 
     </style>
 </head>
+<canvas id="matrix-bg"></canvas>
+
 <body>
     <div class="container">
-        <h1>XIAO Dashboard</h1>
-        <div class="subtitle">IMU Live Data</div>
-
-        <button id="connectBtn">Connect to nRF54L15</button>
-        <button id="disconnectBtn" class="btn-danger" style="display: none;">Disconnect</button>
-        
-        <div id="status" class="status-badge">Disconnected</div>
-
-        <!-- IMU Widget -->
-        <div class="widget">
-            <h3>Accelerometer (g)</h3>
-            <canvas id="imuChart"></canvas>
+        <h1>// XIAO nRF54L15 SENSORHUB //</h1>
+        <div class="btn-container">
+            <button id="btn">[ CONNECT ]</button>
+            <button id="disconnect-btn">[ DISCONNECT ]</button>
         </div>
+        <div id="status">&gt; AWAITING CONNECTION...</div>
 
-        <div class="widget" style="margin-top: 20px;">
-            <h3>Microphone RMS Audio Level</h3>
-            <canvas id="micChart"></canvas>
+        <div class="dashboard">
+            <!-- Audio Spectrum Panel -->
+            <div class="panel">
+                <div class="panel-title">&gt; Audio Spectrum :: PDM Mic :: 32 bands 78Hz-7.4kHz</div>
+                <div class="chart-wrapper">
+                    <canvas id="fft"></canvas>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="peak-freq">---</div>
+                        <div class="stat-label">Peak Freq</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="rms-value">0.0</div>
+                        <div class="stat-label">RMS Level</div>
+                    </div>
+                </div>
+                <div class="rms-container">
+                    <div class="rms-bar-bg"><div class="rms-bar-fill" id="rms-bar" style="width:0%"></div></div>
+                    <div class="rms-text">
+                        <span>30 dB</span>
+                        <span id="rms-numeric">30.0</span>
+                        <span>90 dB</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Waterfall Panel -->
+            <div class="panel">
+                <div class="panel-title">&gt; Spectrogram :: Waterfall :: neon colormap</div>
+                <div class="waterfall-wrapper">
+                    <canvas id="waterfall-canvas"></canvas>
+                </div>
+            </div>
+
+            <!-- IMU Panel -->
+            <div class="panel">
+                <div class="panel-title">&gt; Accelerometer :: LSM6DS3TR-C :: XYZ m/s²</div>
+                <div class="chart-wrapper">
+                    <canvas id="imu"></canvas>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box"><div class="stat-value" id="imu-x">0.00</div><div class="stat-label">X m/s²</div></div>
+                    <div class="stat-box"><div class="stat-value" id="imu-y">0.00</div><div class="stat-label">Y m/s²</div></div>
+                    <div class="stat-box"><div class="stat-value" id="imu-z">0.00</div><div class="stat-label">Z m/s²</div></div>
+                </div>
+            </div>
         </div>
-
-        <div id="rawLog" class="raw-log">Waiting for data...</div>
     </div>
 
+    <div id="fire-strip"><div class="fire"></div></div>
+
     <script>
-        const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-        const NUS_RX_CHARACTERISTIC_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-        const NUS_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // Notify char
+        const UUID_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+        const UUID_TX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+        let device, server, service, char;
+        let autoReconnect = false;
+        let reconnectTimer = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT = 5;
+        const textDecoder = new TextDecoder();  // single global instance, no per-notification alloc
 
-        let bleDevice;
-        let bleServer;
-        let txCharacteristic;
+        const FFT_BANDS = 32;
+        const freqLabels = [
+            '78','109','141','172','203','234','266','297','328','359',
+            '391','422','453','500','563','656','766','891','1.0k','1.2k',
+            '1.4k','1.6k','1.9k','2.2k','2.6k','3.0k','3.5k','4.1k','4.7k','5.5k',
+            '6.4k','7.4k'
+        ];
 
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const statusDiv = document.getElementById('status');
+        // =======================================================================
+        // FFT display state
+        // =======================================================================
+        let fftData    = new Array(FFT_BANDS).fill(0);
+        let fftDisplay = new Array(FFT_BANDS).fill(0);
+        let peakHold   = new Array(FFT_BANDS).fill(0);
+        let peakTimer  = new Array(FFT_BANDS).fill(0);
+        const DECAY_FACTOR     = 0.78;
+        const RISE_FACTOR      = 0.70;
+        const PEAK_HOLD_FRAMES = 20;
+        const PEAK_DECAY       = 0.94;
+
+        // RMS tracking - now in dB scale
+        let smoothedRMS = 0;
+        const RMS_DECAY = 0.88;
+        const RMS_RISE  = 0.5;
+
+        // =======================================================================
+        // CSS Fire Animation State - CONSECUTIVE beat detection + LED Loudness Mode
+        // =======================================================================
+        // Trigger: 5+ consecutive beats in 78-141Hz range (bands 0-2)
+        // Reset counter if a frame misses the threshold
+        //
+        // LOUDNESS INDICATOR MODE:
+        // When FIRE_ALWAYS_ON = true, fire acts as a continuous LED loudness indicator
+        // that rises/falls with the peak FFT bar value (like a VU meter).
+        // Animation playback stays at 1.0x (1.75s), only height changes.
+        //
+        // TUNABLE PARAMETERS - Adjust these to change trigger sensitivity:
+        const FIRE_THRESHOLD_RAW = 180;      // Raw value threshold (0-255). Lower = easier trigger
+        const FIRE_THRESHOLD_DB = 67;        // Same as above in dB (30 + 180/255*60)
+        const FIRE_CONSECUTIVE_BEATS = 5;   // Number of back-to-back beats needed
+        const FIRE_MAX_GAP_MS = 150;         // Max ms between beats to count as "consecutive"
+        const FIRE_DURATION_MS = 7500;       // How long fire stays visible (ms)
+        const FIRE_COOLDOWN_S = 15;           // Cooldown after fire in SECONDS (prevents retrigger)
+
+        // LOUDNESS INDICATOR MODE - Professional LED VU Meter style
+        const FIRE_ALWAYS_ON = false;        // false = beat-triggered (threshold-based)
+        const FIRE_MIN_HEIGHT_PX = 40;       // Minimum height when silent (LED "off" state)
+        const FIRE_BASE_HEIGHT_PX = 80;      // Normal baseline height
+        const FIRE_MAX_HEIGHT_PX = 350;      // Maximum height at peak
+        const FIRE_HEIGHT_SMOOTHING = 0.18;  // 0-1, higher = more responsive (0.18 = snappy but smooth)
+        const FIRE_HEIGHT_THROTTLE_MS = 16;  // Update every 16ms (~60fps) for smooth LED effect
+        const FIRE_QUIET_THRESHOLD = 15;     // Below this value, fire shows MIN_HEIGHT (noise gate)
         
-        const rawLog = document.getElementById('rawLog');
+        let consecutiveBeatCount = 0;
+        let lastBeatTime = 0;
+        let fireActive = false;
+        let fireStartTime = 0;
+        let fireCooldownEnd = 0;
+        let fireHeightState = {           // Encapsulated height state
+            current: 150,
+            target: 150,
+            lastUpdate: 0
+        };
 
-        let imuChart;
-        let micChart;
+        // Manual tuning function - call from browser console to adjust on-the-fly
+        function tuneFire(params = {}) {
+            if (params.threshold !== undefined) window.FIRE_THRESHOLD_RAW = params.threshold;
+            if (params.beats !== undefined) window.FIRE_CONSECUTIVE_BEATS = params.beats;
+            if (params.gap !== undefined) window.FIRE_MAX_GAP_MS = params.gap;
+            if (params.duration !== undefined) window.FIRE_DURATION_MS = params.duration;
+            if (params.cooldown !== undefined) window.FIRE_COOLDOWN_S = params.cooldown;
+            if (params.alwaysOn !== undefined) window.FIRE_ALWAYS_ON = params.alwaysOn;
+            if (params.minHeight !== undefined) window.FIRE_MIN_HEIGHT_PX = params.minHeight;
+            if (params.baseHeight !== undefined) window.FIRE_BASE_HEIGHT_PX = params.baseHeight;
+            if (params.maxHeight !== undefined) window.FIRE_MAX_HEIGHT_PX = params.maxHeight;
+            if (params.smoothing !== undefined) window.FIRE_HEIGHT_SMOOTHING = params.smoothing;
+            if (params.quietThreshold !== undefined) window.FIRE_QUIET_THRESHOLD = params.quietThreshold;
+            console.log('Fire tuned:', {
+                threshold: window.FIRE_THRESHOLD_RAW ?? FIRE_THRESHOLD_RAW,
+                beats: window.FIRE_CONSECUTIVE_BEATS ?? FIRE_CONSECUTIVE_BEATS,
+                gap: window.FIRE_MAX_GAP_MS ?? FIRE_MAX_GAP_MS,
+                duration: window.FIRE_DURATION_MS ?? FIRE_DURATION_MS,
+                cooldown: window.FIRE_COOLDOWN_S ?? FIRE_COOLDOWN_S,
+                alwaysOn: window.FIRE_ALWAYS_ON ?? FIRE_ALWAYS_ON,
+                minHeight: window.FIRE_MIN_HEIGHT_PX ?? FIRE_MIN_HEIGHT_PX,
+                baseHeight: window.FIRE_BASE_HEIGHT_PX ?? FIRE_BASE_HEIGHT_PX,
+                maxHeight: window.FIRE_MAX_HEIGHT_PX ?? FIRE_MAX_HEIGHT_PX,
+                smoothing: window.FIRE_HEIGHT_SMOOTHING ?? FIRE_HEIGHT_SMOOTHING,
+                quietThreshold: window.FIRE_QUIET_THRESHOLD ?? FIRE_QUIET_THRESHOLD
+            });
+        }
+        window.tuneFire = tuneFire;
 
-        function updateUI(connected) {
-            connectBtn.style.display = connected ? 'none' : 'block';
-            disconnectBtn.style.display = connected ? 'block' : 'none';
-            
-            if (connected) {
-                statusDiv.innerText = 'Connected';
-                statusDiv.classList.add('connected');
-            } else {
-                statusDiv.innerText = 'Disconnected';
-                statusDiv.classList.remove('connected');
+        // Update fire height based on peak FFT value (LED Loudness Indicator style)
+        // Height changes smoothly with the audio peak, animation stays at constant 1.75s (1.0x playback)
+        function updateFireHeight(maxValue) {
+            // In ALWAYS_ON mode, fire is always visible and acts as a VU meter
+            // In beat-triggered mode, only update when fire is active
+            const alwaysOn = window.FIRE_ALWAYS_ON ?? FIRE_ALWAYS_ON;
+            if (!fireActive && !alwaysOn) return;
+
+            try {
+                const nowMs = performance.now();
+
+                // Throttle to prevent excessive updates while maintaining smooth LED effect
+                if (nowMs - fireHeightState.lastUpdate < ((window.FIRE_HEIGHT_THROTTLE_MS ?? FIRE_HEIGHT_THROTTLE_MS))) return;
+                fireHeightState.lastUpdate = nowMs;
+
+                // Get parameters with defaults
+                const minHeight = (typeof window.FIRE_MIN_HEIGHT_PX !== 'undefined') ? window.FIRE_MIN_HEIGHT_PX : FIRE_MIN_HEIGHT_PX;
+                const baseHeight = (typeof window.FIRE_BASE_HEIGHT_PX !== 'undefined') ? window.FIRE_BASE_HEIGHT_PX : FIRE_BASE_HEIGHT_PX;
+                const maxHeight = (typeof window.FIRE_MAX_HEIGHT_PX !== 'undefined') ? window.FIRE_MAX_HEIGHT_PX : FIRE_MAX_HEIGHT_PX;
+                const smoothing = (typeof window.FIRE_HEIGHT_SMOOTHING !== 'undefined') ? window.FIRE_HEIGHT_SMOOTHING : FIRE_HEIGHT_SMOOTHING;
+                const quietThreshold = (typeof window.FIRE_QUIET_THRESHOLD !== 'undefined') ? window.FIRE_QUIET_THRESHOLD : FIRE_QUIET_THRESHOLD;
+
+                // Calculate target height from peak value (0-255)
+                // Like a professional LED VU meter: min -> base -> max
+                let target;
+                if (maxValue < quietThreshold) {
+                    // Below noise gate - show minimum (LED "off" state)
+                    target = minHeight;
+                } else {
+                    // Map 0-255 to base-max range with proper scaling
+                    const peakness = Math.max(0, Math.min(255, maxValue)) / 255;
+                    target = baseHeight + (peakness * (maxHeight - baseHeight));
+                }
+
+                // Smooth interpolation for natural LED meter movement (exponential smoothing)
+                fireHeightState.current = fireHeightState.current * (1 - smoothing) + target * smoothing;
+
+                // Apply height to CSS variable (animation playback stays at 1.0x constant)
+                if (domFireStrip) {
+                    // Round to avoid sub-pixel rendering artifacts
+                    const finalHeight = Math.round(fireHeightState.current);
+                    domFireStrip.style.setProperty('--fire-height', finalHeight + 'px');
+                }
+            } catch (err) {
+                console.error('Fire height error:', err);
             }
+        }
+
+        // =======================================================================
+        // Matrix Rain Background
+        // =======================================================================
+        let drawMatrixFrame = null;  // set by initMatrixRain, called from renderLoop
+        function initMatrixRain() {
+            const canvas = document.getElementById('matrix-bg');
+            const ctx = canvas.getContext('2d');
+            const FONT_SIZE = 14;
+            let cols, drops;
+
+            function resize() {
+                // Half resolution – 50% fewer fillText calls, CSS scales up.
+                canvas.width  = (window.innerWidth + 1) >> 1;
+                canvas.height = (window.innerHeight + 1) >> 1;
+                cols  = Math.floor(canvas.width / FONT_SIZE);
+                drops = new Array(cols).fill(1);
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            const CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+            // Expose draw function – called from single unified renderLoop
+            // (no separate rAF chain – prevents scheduling contention with BLE events)
+            drawMatrixFrame = function() {
+                ctx.fillStyle = 'rgba(0,0,0,0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00ff41';
+                ctx.font = FONT_SIZE + 'px monospace';
+                for (let i = 0; i < cols; i++) {
+                    const ch = CHARS[(Math.random() * CHARS.length) | 0];
+                    ctx.fillText(ch, i * FONT_SIZE, drops[i] * FONT_SIZE);
+                    if (drops[i] * FONT_SIZE > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                    drops[i]++;
+                }
+            };
+        }
+        // =======================================================================
+        // Waterfall palette – black at silence, dark→neon→hot progression
+        // =======================================================================
+        const WF_STOPS = [
+            [0.00,   0,   0,   0],    // black (silence)
+            [0.10,  15,   0,  50],    // near-black purple
+            [0.22,  60,   0, 160],    // deep violet
+            [0.35, 120,   0, 220],    // purple-blue
+            [0.45,   0, 100, 255],    // electric blue
+            [0.55,   0, 200, 200],    // cyan
+            [0.65,   0, 255,  80],    // neon green
+            [0.78,  57, 255,  20],    // lime
+            [0.88, 220, 255,   0],    // yellow
+            [0.95, 255, 140,   0],    // orange
+            [1.00, 255,  50,  20],    // red-hot
+        ];
+        const NEON_PALETTE = new Uint8ClampedArray(256 * 3);
+        for (let i = 0; i < 256; i++) {
+            const t = i / 255;
+            let lo = 0;
+            for (let s = 1; s < WF_STOPS.length; s++) { if (WF_STOPS[s][0] >= t) { lo = s - 1; break; } }
+            const a = WF_STOPS[lo], b = WF_STOPS[lo + 1];
+            const f = (t - a[0]) / (b[0] - a[0]);
+            NEON_PALETTE[i * 3]     = (a[1] + f * (b[1] - a[1]) + 0.5) | 0;
+            NEON_PALETTE[i * 3 + 1] = (a[2] + f * (b[2] - a[2]) + 0.5) | 0;
+            NEON_PALETTE[i * 3 + 2] = (a[3] + f * (b[3] - a[3]) + 0.5) | 0;
+        }
+
+        // =======================================================================
+        // Waterfall – single canvas, pixel-scroll, neon colormap
+        // =======================================================================
+        const WF_ROW_H = 3;
+        let wfCanvas, wfCtx, wfW = 0, wfH = 0;
+        let wfRowBuf = null;   // pre-allocated ImageData row – zero alloc per waterfall frame
+
+        function initWaterfall() {
+            wfCanvas = document.getElementById('waterfall-canvas');
+            wfCtx = wfCanvas.getContext('2d');
+            resizeWaterfall();
+            window.addEventListener('resize', resizeWaterfall);
+        }
+        function resizeWaterfall() {
+            const wrap = wfCanvas.parentElement;
+            wfW = wrap.clientWidth;
+            wfH = wrap.clientHeight;
+            wfCanvas.width  = wfW;
+            wfCanvas.height = wfH;
+            wfCtx.fillStyle = '#000';
+            wfCtx.fillRect(0, 0, wfW, wfH);
+            wfRowBuf = null;   // width changed – recreate on next addWaterfallRow
+        }
+        function addWaterfallRow(bandData) {
+            if (!wfW) return;
+            // Scroll existing content down – GPU-accelerated copy, no JS heap alloc
+            wfCtx.drawImage(wfCanvas, 0, 0, wfW, wfH - WF_ROW_H, 0, WF_ROW_H, wfW, wfH - WF_ROW_H);
+
+            // Allocate row buffer once; reallocate only after canvas resize
+            if (!wfRowBuf || wfRowBuf.width !== wfW) {
+                wfRowBuf = wfCtx.createImageData(wfW, WF_ROW_H);
+                for (let i = 3; i < wfRowBuf.data.length; i += 4) wfRowBuf.data[i] = 255;
+            }
+            const px = wfRowBuf.data;
+            const bw = wfW / FFT_BANDS;
+            // Direct pixel write with linear interpolation – zero string allocs
+            for (let x = 0; x < wfW; x++) {
+                const fb  = (x + 0.5) / bw;
+                const b0  = fb | 0;
+                const b1  = b0 < FFT_BANDS - 1 ? b0 + 1 : b0;
+                const fr  = fb - b0;
+                const v   = ((bandData[b0] * (1 - fr) + bandData[b1] * fr) + 0.5) | 0;
+                const pi  = (v < 0 ? 0 : v > 255 ? 255 : v) * 3;
+                const xi  = x << 2;           // x * 4
+                px[xi]   = NEON_PALETTE[pi];
+                px[xi+1] = NEON_PALETTE[pi+1];
+                px[xi+2] = NEON_PALETTE[pi+2];
+            }
+            // Replicate row 0 into remaining WF_ROW_H-1 rows
+            const rb = wfW << 2;
+            for (let r = 1; r < WF_ROW_H; r++) px.copyWithin(r * rb, 0, rb);
+            wfCtx.putImageData(wfRowBuf, 0, 0);
+        }
+
+        // =======================================================================
+        // FFT smoothing + peak hold
+        // =======================================================================
+        function smoothFFT(newValues) {
+            for (let i = 0; i < FFT_BANDS; i++) {
+                if (newValues[i] > fftDisplay[i]) {
+                    fftDisplay[i] = fftDisplay[i] * (1 - RISE_FACTOR) + newValues[i] * RISE_FACTOR;
+                } else {
+                    fftDisplay[i] = fftDisplay[i] * DECAY_FACTOR + newValues[i] * (1 - DECAY_FACTOR);
+                }
+                if (fftDisplay[i] >= peakHold[i]) {
+                    peakHold[i] = fftDisplay[i]; peakTimer[i] = 0;
+                } else {
+                    if (++peakTimer[i] > PEAK_HOLD_FRAMES) peakHold[i] *= PEAK_DECAY;
+                }
+            }
+        }
+
+        function calculateRMS(vals) {
+            let s = 0;
+            for (let i = 0; i < vals.length; i++) { const n = vals[i]/255; s += n*n; }
+            return Math.sqrt(s / vals.length) * 255;
+        }
+
+        function barColor(v) {
+            const t = v / 255;
+            if (t < 0.25) return `hsl(${220 - t*80}, 90%, 55%)`;
+            if (t < 0.5)  return `hsl(${180 - (t-0.25)*240}, 90%, 50%)`;
+            if (t < 0.75) return `hsl(${120 - (t-0.5)*320}, 90%, 50%)`;
+            return `hsl(${40  - (t-0.75)*160}, 90%, 55%)`;
+        }
+
+        // Pre-built bar color palette – zero allocation at runtime
+        const BAR_COLORS = new Array(256);
+        for (let i = 0; i < 256; i++) BAR_COLORS[i] = barColor(i);
+
+        // =======================================================================
+        // Canvas 2D FFT Renderer – replaces Chart.js for hypersmooth 60fps
+        // Zero allocations in hot path. ~0.3ms per frame vs 8-15ms Chart.js.
+        // =======================================================================
+        let fftCanvas, fftCtx, fftW = 0, fftH = 0;
+        const FFT_PAD = { top: 6, right: 8, bottom: 38, left: 48 };
+        const FFT_Y_TICKS  = [0, 51, 102, 153, 204, 255];
+        const FFT_Y_LABELS = ['30 dB','42 dB','54 dB','66 dB','78 dB','90 dB'];
+        const FFT_X_IDX    = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 31];
+
+        function initFftCanvas() {
+            fftCanvas = document.getElementById('fft');
+            fftCtx = fftCanvas.getContext('2d', { alpha: false });
+            resizeFftCanvas();
+            window.addEventListener('resize', resizeFftCanvas);
+        }
+        function resizeFftCanvas() {
+            const wrap = fftCanvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            fftW = wrap.clientWidth;
+            fftH = wrap.clientHeight;
+            fftCanvas.width  = (fftW * dpr) | 0;
+            fftCanvas.height = (fftH * dpr) | 0;
+            fftCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        function drawFft(values, peaks) {
+            if (!fftW) return;
+            const ctx = fftCtx;
+            const pl = FFT_PAD.left, pt = FFT_PAD.top;
+            const pw = fftW - pl - FFT_PAD.right;
+            const ph = fftH - pt - FFT_PAD.bottom;
+            const bw = pw / FFT_BANDS;
+            const gap = bw > 6 ? bw * 0.15 : 1;
+            const bn = bw - gap;
+
+            // Clear (opaque – alpha:false canvas)
+            ctx.fillStyle = '#000800';
+            ctx.fillRect(0, 0, fftW, fftH);
+
+            // Grid lines – single batched path
+            ctx.strokeStyle = 'rgba(0,255,65,0.06)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let t = 0; t < 6; t++) {
+                const y = (pt + ph - (FFT_Y_TICKS[t] / 255) * ph + 0.5) | 0;
+                ctx.moveTo(pl, y);
+                ctx.lineTo(pl + pw, y);
+            }
+            ctx.stroke();
+
+            // Y-axis labels
+            ctx.fillStyle = '#006620';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let t = 0; t < 6; t++) {
+                ctx.fillText(FFT_Y_LABELS[t], pl - 4, pt + ph - (FFT_Y_TICKS[t] / 255) * ph);
+            }
+
+            // Bars – direct fillRect, zero path overhead
+            for (let i = 0; i < FFT_BANDS; i++) {
+                const v = values[i];
+                const h = (v / 255) * ph;
+                ctx.fillStyle = BAR_COLORS[((v + 0.5) | 0) & 0xFF];
+                ctx.fillRect(pl + i * bw + gap * 0.5, pt + ph - h, bn, h);
+            }
+
+            // Peak hold markers – small squares (faster than arc)
+            ctx.fillStyle = 'rgba(255,255,100,0.9)';
+            for (let i = 0; i < FFT_BANDS; i++) {
+                const pv = peaks[i];
+                if (pv < 2) continue;
+                ctx.fillRect(
+                    pl + i * bw + bw * 0.5 - 2,
+                    pt + ph - (pv / 255) * ph - 2,
+                    4, 4
+                );
+            }
+
+            // X-axis frequency labels (rotated ~50°)
+            ctx.fillStyle = '#006620';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            for (let k = 0; k < FFT_X_IDX.length; k++) {
+                const i = FFT_X_IDX[k];
+                ctx.save();
+                ctx.translate(pl + i * bw + bw * 0.5, pt + ph + 4);
+                ctx.rotate(0.87);  // ~50 degrees
+                ctx.fillText(freqLabels[i], 0, 0);
+                ctx.restore();
+            }
+        }
+
+
+        // =======================================================================
+        // Render state
+        // =======================================================================
+        let fftDirty      = false;
+        let imuDirty      = false;
+        let imuLatest     = null;
+        let peakFreqLabel = '---';
+        let lastWaterfallMs  = 0;
+        let lastFrameTs      = 0;   // rAF timestamp for frame budget monitoring
+        let lastMatrixMs     = 0;   // matrix rain throttle
+        // =======================================================================
+        // Canvas 2D IMU Renderer – replaces Chart.js line chart
+        // Circular buffer, no shift/push, no layout pass. ~0.3ms per frame.
+        // =======================================================================
+        const IMU_HISTORY = 80;
+        const IMU_COLORS  = ['#ff3333', '#00ff41', '#00ccff'];
+        const IMU_FILLS   = ['rgba(255,50,50,0.12)', 'rgba(0,255,65,0.10)', 'rgba(0,200,255,0.10)'];
+        const IMU_LABELS  = ['X', 'Y', 'Z'];
+        const IMU_RANGE   = 15;
+        const imuHistory  = [
+            new Float32Array(IMU_HISTORY),
+            new Float32Array(IMU_HISTORY),
+            new Float32Array(IMU_HISTORY),
+        ];
+        let imuWIdx = 0;
+        let imuCvs, imuC2d, imuW = 0, imuH = 0;
+
+        function initImuCanvas() {
+            imuCvs = document.getElementById('imu');
+            imuC2d = imuCvs.getContext('2d', { alpha: false });
+            resizeImuCanvas();
+            window.addEventListener('resize', resizeImuCanvas);
+        }
+        function resizeImuCanvas() {
+            const wrap = imuCvs.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            imuW = wrap.clientWidth;
+            imuH = wrap.clientHeight;
+            imuCvs.width  = (imuW * dpr) | 0;
+            imuCvs.height = (imuH * dpr) | 0;
+            imuC2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        function pushImu(vals) {
+            for (let d = 0; d < 3; d++) imuHistory[d][imuWIdx] = vals[d];
+            imuWIdx = (imuWIdx + 1) % IMU_HISTORY;
+        }
+        function drawImu() {
+            if (!imuW) return;
+            const ctx = imuC2d;
+            const pl = 36, pr = 6, pt = 20, pb = 6;
+            const pw = imuW - pl - pr;
+            const ph = imuH - pt - pb;
+            const range2 = 2 * IMU_RANGE;
+            ctx.fillStyle = '#000800';
+            ctx.fillRect(0, 0, imuW, imuH);
+            // Grid + Y labels
+            ctx.strokeStyle = 'rgba(0,255,65,0.06)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let g = -IMU_RANGE; g <= IMU_RANGE; g += 5) {
+                const y = (pt + ph * (1 - (g + IMU_RANGE) / range2) + 0.5) | 0;
+                ctx.moveTo(pl, y); ctx.lineTo(pl + pw, y);
+            }
+            ctx.stroke();
+            ctx.fillStyle = '#006620';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            for (let g = -IMU_RANGE; g <= IMU_RANGE; g += 5) {
+                ctx.fillText(g.toString(), pl - 4, pt + ph * (1 - (g + IMU_RANGE) / range2));
+            }
+            // Zero line
+            ctx.strokeStyle = 'rgba(0,255,65,0.12)';
+            ctx.beginPath();
+            const zy = (pt + ph * 0.5 + 0.5) | 0;
+            ctx.moveTo(pl, zy); ctx.lineTo(pl + pw, zy);
+            ctx.stroke();
+            // 3 axes: filled area + stroke
+            for (let d = 0; d < 3; d++) {
+                ctx.beginPath();
+                ctx.moveTo(pl, zy);
+                for (let i = 0; i < IMU_HISTORY; i++) {
+                    const idx = (imuWIdx + i) % IMU_HISTORY;
+                    const x = pl + (i / (IMU_HISTORY - 1)) * pw;
+                    const y = pt + ph * (1 - (imuHistory[d][idx] + IMU_RANGE) / range2);
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(pl + pw, zy);
+                ctx.closePath();
+                ctx.fillStyle = IMU_FILLS[d]; ctx.fill();
+                ctx.strokeStyle = IMU_COLORS[d]; ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let i = 0; i < IMU_HISTORY; i++) {
+                    const idx = (imuWIdx + i) % IMU_HISTORY;
+                    const x = pl + (i / (IMU_HISTORY - 1)) * pw;
+                    const y = pt + ph * (1 - (imuHistory[d][idx] + IMU_RANGE) / range2);
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            // Legend
+            ctx.font = '10px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            for (let d = 0; d < 3; d++) {
+                ctx.fillStyle = IMU_COLORS[d];
+                ctx.fillRect(pl + d * 50, 3, 10, 10);
+                ctx.fillStyle = '#00bb30';
+                ctx.fillText(IMU_LABELS[d], pl + d * 50 + 14, 3);
+            }
+        }
+
+        // Cached DOM references (set once on load, avoids getElementById per frame)
+        let domRmsBar, domRmsValue, domRmsNumeric, domPeakFreq;
+        let domImuX, domImuY, domImuZ, domFireStrip;
+
+        // =======================================================================
+        // requestAnimationFrame render loop – 60 Hz
+        // =======================================================================
+        function renderLoop(now) {
+            // Frame budget: detect dropped frames, skip heavy work to recover
+            const dt = now - lastFrameTs;
+            lastFrameTs = now;
+            const skipHeavy = dt > 22;  // >22ms = dropped frame, ease off
+
+            try {
+                // Matrix rain (non-essential – skip if behind schedule)
+                if (!skipHeavy && drawMatrixFrame && now - lastMatrixMs >= 100) {
+                    lastMatrixMs = now;
+                    drawMatrixFrame();
+                }
+
+                if (fftDirty) {
+                    fftDirty = false;
+                    smoothFFT(fftData);
+
+                    // RMS - convert to dB for display
+                    const inst = calculateRMS(fftDisplay);
+                    smoothedRMS = inst > smoothedRMS ? smoothedRMS*(1-RMS_RISE) + inst*RMS_RISE : smoothedRMS*RMS_DECAY + inst*(1-RMS_DECAY);
+                    const rms_dB  = (smoothedRMS/255)*60 + 30;
+                    const rms_str = rms_dB.toFixed(1);
+                    const pct = Math.min(100, (smoothedRMS/255)*100);
+                    domRmsBar.style.width = pct + '%';
+                    domRmsValue.textContent = rms_str + ' dB';
+                    domRmsNumeric.textContent = rms_str;
+                    domPeakFreq.textContent = peakFreqLabel;
+
+                    // Beat detection and fire brightness update (use rAF timestamp)
+                    const maxSubBass = Math.max(fftDisplay[0] || 0, fftDisplay[1] || 0, fftDisplay[2] || 0);
+                    
+                    // Fire trigger logic
+                    const threshold = window.FIRE_THRESHOLD_RAW ?? FIRE_THRESHOLD_RAW;
+                    const maxGap = window.FIRE_MAX_GAP_MS ?? FIRE_MAX_GAP_MS;
+                    const targetBeats = window.FIRE_CONSECUTIVE_BEATS ?? FIRE_CONSECUTIVE_BEATS;
+                    const cooldownS = window.FIRE_COOLDOWN_S ?? FIRE_COOLDOWN_S;
+                    
+                    const inCooldown = now < fireCooldownEnd;
+                    
+                    if (maxSubBass > threshold) {
+                        if (now - lastBeatTime <= maxGap || consecutiveBeatCount === 0) {
+                            consecutiveBeatCount++;
+                        } else {
+                            consecutiveBeatCount = 1;
+                        }
+                        lastBeatTime = now;
+                        
+                        if (!fireActive && !inCooldown && consecutiveBeatCount >= targetBeats) {
+                            fireActive = true;
+                            fireStartTime = now;
+                            fireCooldownEnd = now + (cooldownS * 1000);
+                            domFireStrip.style.display = 'block';
+                            consecutiveBeatCount = 0;
+                        }
+                    } else if (now - lastBeatTime > maxGap) {
+                        consecutiveBeatCount = 0;
+                    }
+
+                    // Update fire height based on peak FFT value (peakness indicator)
+                    const alwaysOn = window.FIRE_ALWAYS_ON ?? FIRE_ALWAYS_ON;
+                    if (fireActive || alwaysOn) {
+                        let peakValue = 0;
+                        for (let i = 0; i < FFT_BANDS; i++) { if (fftDisplay[i] > peakValue) peakValue = fftDisplay[i]; }
+                        updateFireHeight(peakValue);
+
+                        if (!alwaysOn && now - fireStartTime >= (window.FIRE_DURATION_MS ?? FIRE_DURATION_MS)) {
+                            fireActive = false;
+                            fireHeightState.current = 150;
+                            domFireStrip.style.display = 'none';
+                        }
+                    }
+
+                    // FFT bar chart (essential – always draw)
+                    drawFft(fftDisplay, peakHold);
+
+                    // Waterfall (non-essential – skip if behind schedule)
+                    if (!skipHeavy && now - lastWaterfallMs >= 50) {
+                        lastWaterfallMs = now;
+                        addWaterfallRow(fftDisplay);
+                    }
+                }
+
+                if (imuDirty && imuLatest) {
+                    imuDirty = false;
+                    const d = imuLatest;
+                    domImuX.textContent = d.a[0].toFixed(2);
+                    domImuY.textContent = d.a[1].toFixed(2);
+                    domImuZ.textContent = d.a[2].toFixed(2);
+                    pushImu(d.a);
+                    drawImu();
+                }
+            } catch (err) {
+                console.error('Render loop error:', err);
+            }
+            
+            requestAnimationFrame(renderLoop);
+        }
+
+        // =======================================================================
+        // BLE notification handler – named function prevents GC of listener ref
+        // and deduplicates when re-added on auto-reconnect
+        // =======================================================================
+        function handleNotification(e) {
+            const v = e.target.value;
+            if (v.getUint8(0) === 0xFF) {
+                let peakVal = 0, peakIdx = 3;
+                for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
+                    const val = v.getUint8(i);
+                    fftData[i-1] = val;
+                    if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
+                }
+                peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
+                fftDirty = true;
+            } else {
+                try {
+                    const d = JSON.parse(textDecoder.decode(v));
+                    if (d.a) { imuLatest = d; imuDirty = true; }
+                } catch(err) {}
+            }
+        }
+
+        // =======================================================================
+        // BLE connect
+        // =======================================================================
+        async function connectGatt() {
+            server  = await device.gatt.connect();
+            service = await server.getPrimaryService(UUID_SERVICE);
+            char    = await service.getCharacteristic(UUID_TX);
+            await char.startNotifications();
+            char.addEventListener('characteristicvaluechanged', handleNotification);
+            const s = document.getElementById('status');
+            s.innerText = '> CONNECTED :: 32 bands 78Hz–7.4kHz :: 20fps';
+            s.classList.add('connected');
+            document.getElementById('btn').style.display = 'none';
+            document.getElementById('disconnect-btn').style.display = 'block';
+            reconnectAttempts = 0;
         }
 
         async function connect() {
             try {
-                statusDiv.innerText = 'Requesting Bluetooth Device...';
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [NUS_SERVICE_UUID] }],
-                    optionalServices: [NUS_SERVICE_UUID]
-                });
-
-                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-                statusDiv.innerText = 'Connecting...';
-                bleServer = await bleDevice.gatt.connect();
-
-                const service = await bleServer.getPrimaryService(NUS_SERVICE_UUID);
-                txCharacteristic = await service.getCharacteristic(NUS_TX_CHARACTERISTIC_UUID);
-                
-                await txCharacteristic.startNotifications();
-                txCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
-
-                updateUI(true);
-            } catch (error) {
-                console.error('Error:', error);
-                statusDiv.innerText = 'Error: ' + error.message;
-                statusDiv.classList.remove('connected');
-            }
-        }
-
-        function onDisconnected() {
-            updateUI(false);
+                autoReconnect = true;
+                device = await navigator.bluetooth.requestDevice({ filters: [{ services: [UUID_SERVICE] }] });
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                await connectGatt();
+            } catch(e) { console.error(e); }
         }
 
         function disconnect() {
-            if (bleDevice && bleDevice.gatt.connected) {
-                bleDevice.gatt.disconnect();
-            }
+            autoReconnect = false;
+            clearTimeout(reconnectTimer);
+            if (device && device.gatt.connected) device.gatt.disconnect();
         }
 
-        let buffer = "";
-
-        function handleNotifications(event) {
-            const value = event.target.value;
-            const decoder = new TextDecoder('utf-8');
-            const str = decoder.decode(value);
-            
-            buffer += str;
-            
-            let boundary = buffer.indexOf('}');
-            while (boundary !== -1) {
-                const packet = buffer.slice(0, boundary + 1);
-                buffer = buffer.slice(boundary + 1);
-                boundary = buffer.indexOf('}');
-                
-                try {
-                    const data = JSON.parse(packet);
-                    updateDashboard(data);
-                    rawLog.innerText = packet;
-                } catch (e) {
-                    // Ignore incomplete fragments
-                }
+        function onDisconnected() {
+            server = null; service = null; char = null;
+            clearTimeout(reconnectTimer);
+            const s = document.getElementById('status');
+            s.classList.remove('connected');
+            document.getElementById('btn').style.display = 'block';
+            document.getElementById('disconnect-btn').style.display = 'none';
+            // Fire cleanup
+            if (!(window.FIRE_ALWAYS_ON ?? FIRE_ALWAYS_ON)) {
+                fireActive = false;
+                fireHeightState.current = 150;
+                if (domFireStrip) domFireStrip.style.display = 'none';
             }
-        }
-
-        function updateDashboard(data) {
-            if (data.a && data.a.length === 3) {
-                updateChart(data.a);
-            }
-            if (data.m !== undefined) {
-                updateMicChart(data.m);
-            }
-        }
-        
-        function initChart() {
-            const ctx = document.getElementById('imuChart').getContext('2d');
-            imuChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array(50).fill(0),
-                    datasets: [{
-                        label: 'X',
-                        data: Array(50).fill(0),
-                        borderColor: '#ef4444',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4
-                    }, {
-                        label: 'Y',
-                        data: Array(50).fill(0),
-                        borderColor: '#3b82f6',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4
-                    }, {
-                        label: 'Z',
-                        data: Array(50).fill(0),
-                        borderColor: '#10b981',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    animation: {
-                        duration: 200,
-                        easing: 'linear'
-                    },
-                    scales: {
-                        x: {
-                            display: false
-                        },
-                        y: {
-                            min: -10,
-                            max: 10,
-                            ticks: {
-                                color: '#94a3b8'
-                            },
-                            grid: {
-                                color: '#334155'
-                            }
+            // Auto-reconnect: keep device reference, retry with backoff
+            if (autoReconnect && device && reconnectAttempts < MAX_RECONNECT) {
+                reconnectAttempts++;
+                // Firmware needs ~2s to restart advertising after disconnect
+                const delay = 2000 + Math.min(1000 * reconnectAttempts, 4000);
+                s.innerText = `> RECONNECTING (${reconnectAttempts}/${MAX_RECONNECT}) in ${(delay/1000).toFixed(0)}s...`;
+                reconnectTimer = setTimeout(async () => {
+                    try {
+                        await connectGatt();
+                    } catch(err) {
+                        console.warn('Reconnect attempt', reconnectAttempts, 'failed:', err);
+                        // Permanent errors – stop retrying
+                        if (err.name === 'SecurityError' || err.message?.includes('User cancelled')) {
+                            reconnectAttempts = MAX_RECONNECT;
                         }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#f8fafc'
-                            }
-                        }
+                        onDisconnected();  // recurse with incremented counter
                     }
-                }
-            });
-
-            const micCtx = document.getElementById('micChart').getContext('2d');
-            micChart = new Chart(micCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Audio Level'],
-                    datasets: [{
-                        label: 'RMS',
-                        data: [0],
-                        backgroundColor: '#8b5cf6',
-                        borderColor: '#7c3aed',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    animation: { duration: 100 },
-                    scales: {
-                        y: {
-                            min: 0,
-                            max: 2000,
-                            ticks: { color: '#94a3b8' },
-                            grid: { color: '#334155' }
-                        }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
+                }, delay);
+            } else {
+                s.innerText = '> CONNECTION LOST';
+                device = null;  // Give up, require manual reconnect
+                autoReconnect = false;
+            }
         }
 
-        function updateChart(accelData) {
-            imuChart.data.labels.shift();
-            imuChart.data.labels.push('');
-            
-            imuChart.data.datasets[0].data.shift();
-            imuChart.data.datasets[0].data.push(accelData[0]);
+        // =======================================================================
+        // Init on load
+        // =======================================================================
+        window.onload = () => {
+            // Cache DOM references once (avoids getElementById in hot render loop)
+            domRmsBar     = document.getElementById('rms-bar');
+            domRmsValue   = document.getElementById('rms-value');
+            domRmsNumeric = document.getElementById('rms-numeric');
+            domPeakFreq   = document.getElementById('peak-freq');
+            domImuX       = document.getElementById('imu-x');
+            domImuY       = document.getElementById('imu-y');
+            domImuZ       = document.getElementById('imu-z');
+            domFireStrip  = document.getElementById('fire-strip');
 
-            imuChart.data.datasets[1].data.shift();
-            imuChart.data.datasets[1].data.push(accelData[1]);
-            
-            imuChart.data.datasets[2].data.shift();
-            imuChart.data.datasets[2].data.push(accelData[2]);
-            
-            imuChart.update();
-        }
+            initMatrixRain();
+            initWaterfall();
+            requestAnimationFrame(renderLoop);
 
-        function updateMicChart(micData) {
-            micChart.data.datasets[0].data = [micData];
-            micChart.update();
-        }
+            // IMU chart – direct Canvas 2D renderer (zero-overhead, ~0.3ms/frame)
+            initImuCanvas();
 
-        connectBtn.addEventListener('click', connect);
-        disconnectBtn.addEventListener('click', disconnect);
-        
-        window.onload = initChart;
+            // FFT chart – direct Canvas 2D renderer (hypersmooth 60fps)
+            initFftCanvas();
+        };
+
+        document.getElementById('btn').onclick = connect;
+        document.getElementById('disconnect-btn').onclick = disconnect;
     </script>
 </body>
 </html>
