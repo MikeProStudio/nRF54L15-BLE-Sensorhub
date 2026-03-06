@@ -23,3 +23,6 @@ Thumbs.db
 README.rst
 sample.yaml
 build.batbuild.bat
+
+# Zephyr build outputs
+sysbuild/
