@@ -2,6 +2,7 @@
 #include "power_control.h"
 #include "app_config.h"
 #include "../hardware/imu_manager.h"
+#include "../hardware/pdm_handler.h"
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -49,6 +50,7 @@ void power_manager_set_mode(uint8_t mode)
 	
 	if (mode == MODE_INDUSTRY) {
 		LOG_INF("Switching to Industry Mode (Power-Save)");
+		pdm_handler_stop();  // Stop PDM before suspending to prevent RX queue overflow
 		audio_thread_suspend();
 		sensor_thread_suspend();
 		power_control_sensors_off();
@@ -59,6 +61,7 @@ void power_manager_set_mode(uint8_t mode)
 		power_control_sensors_on();
 		k_sleep(K_MSEC(50));
 		imu_reinit();
+		pdm_handler_start();  // Restart PDM for continuous audio capture
 		audio_thread_resume();
 		sensor_thread_resume();
 	}

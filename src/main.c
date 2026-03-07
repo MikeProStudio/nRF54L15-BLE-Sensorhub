@@ -215,17 +215,15 @@ static void industry_thread_fn(void)
 		LOG_INF("Industry: wake for sample");
 		
 		power_control_sensors_on();
-		k_msleep(20);  // IMU boot time (LSM6DS3TR-C needs 15ms)
+		k_msleep(50);  // IMU boot time (LSM6DS3TR-C needs 35ms typical)
+		
+		/* Reset ODR flags after power cycle */
+		imu_manager_power_cycle_reset();
 		
 		/* Collect 10 IMU samples over 100ms window */
 		float sum_sq = 0.0f;
 		float peak_mag = 0.0f;
 		float last_ax = 0.0f, last_ay = 0.0f, last_az = 0.0f;
-		
-		/* First read triggers ODR reconfiguration (odr_set flag in imu_manager_read) */
-		struct sensor_value dummy[3];
-		imu_manager_read(dummy);
-		k_msleep(10);
 		
 		for (int i = 0; i < 10; i++) {
 			struct sensor_value accel[3] = {0};
@@ -243,6 +241,10 @@ static void industry_thread_fn(void)
 		
 		float rms = sqrt(sum_sq / 10.0f);
 		
+		/* Start PDM for audio measurement */
+		pdm_handler_start();
+		k_msleep(100);  // Wait for PDM to stabilize and fill buffer
+		
 		uint8_t bands[FFT_BANDS] = {0};
 		uint8_t audio_peak = 0;
 		void *audio_buf = NULL;
@@ -253,8 +255,11 @@ static void industry_thread_fn(void)
 			for (int i = 0; i < FFT_BANDS; i++) {
 				if (bands[i] > audio_peak) audio_peak = bands[i];
 			}
+			pdm_handler_free(audio_buf);
 		}
 		
+		/* Stop PDM and power off sensors */
+		pdm_handler_stop();
 		power_control_sensors_off();
 		
 		/* Enhanced payload: timestamp, last accel values, RMS, Peak, FFT bands, audio peak */
@@ -268,8 +273,12 @@ static void industry_thread_fn(void)
 		
 		len += snprintf(buf + len, sizeof(buf) - len, "]}");
 		
-		ble_service_send_data((uint8_t *)buf, len);
-		LOG_INF("Industry: RMS=%.3f Peak=%.3f APeak=%u (%d bytes)", rms, peak_mag, audio_peak, len);
+		int send_ret = ble_service_send_data((uint8_t *)buf, len);
+		if (send_ret == 0) {
+			LOG_INF("Industry: RMS=%.3f Peak=%.3f APeak=%u (%d bytes) - BLE OK", rms, peak_mag, audio_peak, len);
+		} else {
+			LOG_WRN("Industry: RMS=%.3f Peak=%.3f APeak=%u - BLE err %d", rms, peak_mag, audio_peak, send_ret);
+		}
 	}
 }
 

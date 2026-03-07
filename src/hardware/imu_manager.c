@@ -72,6 +72,13 @@ int imu_reinit(void)
 	return 0;
 }
 
+void imu_manager_power_cycle_reset(void)
+{
+	/* Reset ODR flags after sensor power cycle */
+	odr_set = 0;
+	odr_configured = 0;
+}
+
 int imu_manager_start(void)
 {
 	LOG_DBG("IMU started");
