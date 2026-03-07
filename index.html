@@ -1088,8 +1088,62 @@
                 try {
                     const d = JSON.parse(textDecoder.decode(v));
                     if (d.a) { imuLatest = d; imuDirty = true; }
+                    
+                    if (currentMode === 0 && (d.rms !== undefined || d.peak !== undefined || d.apeak !== undefined)) {
+                        lastMeasurementTime = Date.now();
+                        
+                        if (d.rms !== undefined) {
+                            document.getElementById('result-rms').textContent = d.rms.toFixed(3);
+                        }
+                        if (d.peak !== undefined) {
+                            document.getElementById('result-peak').textContent = d.peak.toFixed(3);
+                        }
+                        if (d.apeak !== undefined) {
+                            const audioDB = (d.apeak / 255) * 60 + 30;
+                            document.getElementById('result-audio').textContent = audioDB.toFixed(1);
+                        }
+                        
+                        document.getElementById('result-timestamp').textContent = 'Updated just now';
+                        document.querySelectorAll('.panel').forEach(p => {
+                            p.classList.remove('sleeping');
+                            p.classList.add('active');
+                        });
+                        
+                        startCountdownTimer();
+                    }
                 } catch(err) {}
             }
+        }
+
+        function startCountdownTimer() {
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            countdownInterval = setInterval(() => {
+                const elapsed = Date.now() - lastMeasurementTime;
+                const remaining = Math.max(0, INDUSTRY_INTERVAL_MS - elapsed);
+                const seconds = Math.ceil(remaining / 1000);
+                
+                document.getElementById('countdown-timer').textContent = `Next measurement in: ${seconds}s`;
+                
+                const elapsedSec = Math.floor(elapsed / 1000);
+                if (elapsedSec < 60) {
+                    document.getElementById('result-timestamp').textContent = `Updated ${elapsedSec}s ago`;
+                } else {
+                    const minutes = Math.floor(elapsedSec / 60);
+                    document.getElementById('result-timestamp').textContent = `Updated ${minutes}m ago`;
+                }
+                
+                if (elapsed > 2000) {
+                    document.querySelectorAll('.panel').forEach(p => {
+                        p.classList.remove('active');
+                        p.classList.add('sleeping');
+                    });
+                }
+                
+                if (remaining === 0) {
+                    clearInterval(countdownInterval);
+                }
+            }, 500);
         }
 
         // =======================================================================
@@ -1098,6 +1152,7 @@
         async function setMode(mode) {
             if (!controlChar) return;
             
+            currentMode = mode;
             const value = new Uint8Array([mode]);
             await controlChar.writeValue(value);
             
@@ -1105,10 +1160,22 @@
             document.getElementById('mode-industry').classList.toggle('active', mode === 0);
             
             const status = document.getElementById('mode-status');
+            const lastResultPanel = document.getElementById('last-result-panel');
+            
             if (mode === 0) {
                 status.innerHTML = '💤 Power-save: 10s interval';
+                lastResultPanel.style.display = 'block';
+                document.querySelectorAll('.panel').forEach(p => {
+                    p.classList.add('sleeping');
+                    p.classList.remove('active');
+                });
             } else {
                 status.innerHTML = '⚡ Continuous streaming';
+                lastResultPanel.style.display = 'none';
+                if (countdownInterval) clearInterval(countdownInterval);
+                document.querySelectorAll('.panel').forEach(p => {
+                    p.classList.remove('sleeping', 'active');
+                });
             }
         }
 

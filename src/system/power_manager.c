@@ -1,8 +1,10 @@
 #include "power_manager.h"
 #include "power_control.h"
-#include "app_config.h"
-#include <zephyr/kernel.h>
+#include "../threads/audio_thread.h"
+#include "../threads/sensor_thread.h"
+#include "../hardware/imu_manager.h"
 #include <zephyr/logging/log.h>
+#include <zephyr/kernel.h>
 
 LOG_MODULE_REGISTER(power_manager, LOG_LEVEL_INF);
 
@@ -57,6 +59,7 @@ void power_manager_set_mode(uint8_t mode)
 		k_timer_stop(&industry_timer);
 		power_control_sensors_on();
 		k_sleep(K_MSEC(50));
+		imu_reinit();
 		audio_thread_resume();
 		sensor_thread_resume();
 	}

@@ -59,6 +59,23 @@ int imu_manager_reinit(void)
 	return 0;
 }
 
+int imu_reinit(void)
+{
+	if (!imu_dev || !device_is_ready(imu_dev)) {
+		LOG_ERR("IMU device not ready for reinit");
+		return -ENODEV;
+	}
+	
+	/* LSM6DS3TR-C requires 15ms boot time after power-on */
+	k_sleep(K_MSEC(15));
+	
+	/* Reset odr_configured flag - will be set on next imu_manager_read() */
+	odr_configured = 0;
+	
+	LOG_INF("IMU re-init (lightweight)");
+	return 0;
+}
+
 int imu_manager_start(void)
 {
 	LOG_DBG("IMU started");
