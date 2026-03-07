@@ -208,7 +208,7 @@
             transition: opacity 0.3s ease-in;
         }
 
-        /* Last Result Panel - Industry Mode */
+        /* Last Result Panel */
         .last-result-panel {
             background: rgba(0, 20, 0, 0.85);
             border: 2px solid rgba(0,255,65,0.4);
@@ -354,10 +354,10 @@
         <div class="mode-control" id="mode-control" style="display:none;">
             <div class="mode-label">OPERATION MODE</div>
             <div class="mode-switch">
-                <button id="mode-continuous" class="mode-btn active">🔴 LIVE</button>
-                <button id="mode-industry" class="mode-btn">🟢 SAVE</button>
+                <button id="mode-continuous" class="mode-btn active"> LIVE</button>
+                <button id="mode-industry" class="mode-btn"> SAVE</button>
             </div>
-            <div id="mode-status" class="mode-status">⚡ Continuous streaming</div>
+            <div id="mode-status" class="mode-status"> Continuous streaming</div>
         </div>
         
         <h1>// XIAO nRF54L15 SENSORHUB //</h1>
@@ -415,27 +415,27 @@
                     <div class="stat-box"><div class="stat-value battery-indicator" id="battery-level">--</div><div class="stat-label">Battery %</div></div>
                 </div>
             </div>
+        </div>
 
-            <!-- Last Result Panel - Industry Mode -->
-            <div class="last-result-panel" id="last-result-panel">
-                <div class="last-result-title">&gt; Last Measurement Results</div>
-                <div class="result-grid">
-                    <div class="result-item">
-                        <div class="result-value" id="result-rms">--</div>
-                        <div class="result-label">Vibration RMS</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value" id="result-peak">--</div>
-                        <div class="result-label">Vibration Peak</div>
-                    </div>
-                    <div class="result-item">
-                        <div class="result-value" id="result-audio">--</div>
-                        <div class="result-label">Audio Peak dB</div>
-                    </div>
+        <!-- Last Result Panel -->
+        <div class="last-result-panel" id="last-result-panel">
+            <div class="last-result-title">&gt; Last Measurement Results</div>
+            <div class="result-grid">
+                <div class="result-item">
+                    <div class="result-value" id="result-rms">--</div>
+                    <div class="result-label">Vibration RMS</div>
                 </div>
-                <div class="result-timestamp" id="result-timestamp">Waiting for first measurement...</div>
-                <div class="countdown-timer" id="countdown-timer">Next measurement in: --</div>
+                <div class="result-item">
+                    <div class="result-value" id="result-peak">--</div>
+                    <div class="result-label">Vibration Peak</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-value" id="result-audio">--</div>
+                    <div class="result-label">Audio Peak dB</div>
+                </div>
             </div>
+            <div class="result-timestamp" id="result-timestamp">Waiting for first measurement...</div>
+            <div class="countdown-timer" id="countdown-timer">Next measurement in: --</div>
         </div>
     </div>
 
@@ -458,10 +458,10 @@
         const textDecoder = new TextDecoder();  // single global instance, no per-notification alloc
 
         // Industry Mode state
-        let currentMode = 1; // 1 = continuous, 0 = industry
+        let currentMode = 1;
         let lastMeasurementTime = 0;
         let countdownInterval = null;
-        const INDUSTRY_INTERVAL_MS = 10000; // 10 seconds
+        const INDUSTRY_INTERVAL_MS = 10000;
 
         const FFT_BANDS = 32;
         const freqLabels = [
@@ -1069,25 +1069,35 @@
             requestAnimationFrame(renderLoop);
         }
 
-            // =======================================================================
-            // BLE notification handler – named function prevents GC of listener ref
-            // and deduplicates when re-added on auto-reconnect
-            // =======================================================================
-            function handleNotification(e) {
-                const v = e.target.value;
-                if (v.getUint8(0) === 0xFF) {
-                    let peakVal = 0, peakIdx = 3;
-                    for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
-                        const val = v.getUint8(i);
-                        fftData[i-1] = val;
-                        if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
-                    }
-                    peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
-                    fftDirty = true;
-                } else {
+        // =======================================================================
+        // BLE notification handler – named function prevents GC of listener ref
+        // and deduplicates when re-added on auto-reconnect
+        // =======================================================================
+        function handleNotification(e) {
+            const v = e.target.value;
+            if (v.getUint8(0) === 0xFF) {
+                let peakVal = 0, peakIdx = 3;
+                for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
+                    const val = v.getUint8(i);
+                    fftData[i-1] = val;
+                    if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
+                }
+                peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
+                fftDirty = true;
+            } else {
+                try {
+                    const d = JSON.parse(textDecoder.decode(v));
+                    if (d.a) { imuLatest = d; imuDirty = true; }
+                } catch(err) {}
+            }
+        }
+
+        // =======================================================================
+        // Mode Control & Battery Functions
+        // =======================================================================
+        async function setMode(mode) {
             if (!controlChar) return;
             
-            currentMode = mode;
             const value = new Uint8Array([mode]);
             await controlChar.writeValue(value);
             
@@ -1095,17 +1105,10 @@
             document.getElementById('mode-industry').classList.toggle('active', mode === 0);
             
             const status = document.getElementById('mode-status');
-            const lastResultPanel = document.getElementById('last-result-panel');
-            
             if (mode === 0) {
                 status.innerHTML = '💤 Power-save: 10s interval';
-                lastResultPanel.style.display = 'block';
-                document.querySelectorAll('.panel').forEach(p => { p.classList.add('sleeping'); p.classList.remove('active'); });
             } else {
                 status.innerHTML = '⚡ Continuous streaming';
-                lastResultPanel.style.display = 'none';
-                if (countdownInterval) clearInterval(countdownInterval);
-                document.querySelectorAll('.panel').forEach(p => { p.classList.remove('sleeping', 'active'); });
             }
         }
 
