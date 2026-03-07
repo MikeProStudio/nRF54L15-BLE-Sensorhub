@@ -1076,11 +1076,12 @@
         function handleNotification(e) {
             const v = e.target.value;
             if (v.getUint8(0) === 0xFF) {
-                let peakVal = 0, peakIdx = 3;
+                let peakVal = 0, peakIdx = 0;
                 for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
                     const val = v.getUint8(i);
                     fftData[i-1] = val;
-                    if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
+                    /* Start peak detection from band 0 (78Hz) instead of band 3 (172Hz) */
+                    if (i >= 1 && val > peakVal) { peakVal = val; peakIdx = i-1; }
                 }
                 peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
                 fftDirty = true;

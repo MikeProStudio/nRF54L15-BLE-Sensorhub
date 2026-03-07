@@ -61,7 +61,8 @@ void dsp_processor_compute_fft(const int16_t *samples, uint32_t sample_count, ui
 		if (bin_lo >= bin_hi)  { bin_lo = bin_hi - 1; }
 		
 		float32_t m = 0.0f;
-		for (int idx = bin_lo; idx <= bin_hi; idx++) {
+		/* Use exclusive upper bound to prevent bin overlap between adjacent bands */
+		for (int idx = bin_lo; idx < bin_hi; idx++) {
 			if (fft_mag[idx] > m) { m = fft_mag[idx]; }
 		}
 		
