@@ -1156,6 +1156,16 @@
             const value = new Uint8Array([mode]);
             await controlChar.writeValue(value);
             
+            updateModeUI(mode);
+        }
+
+        function handleModeNotification(e) {
+            const mode = e.target.value.getUint8(0);
+            currentMode = mode;
+            updateModeUI(mode);
+        }
+        
+        function updateModeUI(mode) {
             document.getElementById('mode-continuous').classList.toggle('active', mode === 1);
             document.getElementById('mode-industry').classList.toggle('active', mode === 0);
             

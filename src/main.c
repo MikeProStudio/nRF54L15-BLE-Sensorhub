@@ -215,7 +215,7 @@ static void industry_thread_fn(void)
 		LOG_INF("Industry: wake for sample");
 		
 		power_control_sensors_on();
-		k_msleep(100);
+		imu_reinit();  // Re-init IMU after power cycle (15ms delay + reset odr_set)
 		
 		/* Collect 10 IMU samples over 100ms window */
 		float sum_sq = 0.0f;
