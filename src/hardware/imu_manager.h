@@ -5,6 +5,7 @@
 #include <zephyr/drivers/sensor.h>
 
 int imu_manager_init(void);
+int imu_manager_reinit(void);
 int imu_manager_start(void);
 int imu_manager_stop(void);
 int imu_manager_read(struct sensor_value accel[3]);

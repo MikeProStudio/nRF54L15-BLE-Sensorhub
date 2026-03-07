@@ -203,7 +203,7 @@ static struct k_thread industry_thread_data;
 static K_THREAD_STACK_DEFINE(audio_thread_stack, 10240);
 static K_THREAD_STACK_DEFINE(ble_tx_thread_stack, 2048);
 static K_THREAD_STACK_DEFINE(sensor_thread_stack, 4096);
-static K_THREAD_STACK_DEFINE(industry_thread_stack, 4096);
+static K_THREAD_STACK_DEFINE(industry_thread_stack, 8192);
 
 static void industry_thread_fn(void)
 {
@@ -216,26 +216,47 @@ static void industry_thread_fn(void)
 		
 		power_control_sensors_on();
 		k_msleep(100);
+		imu_manager_reinit();
 		
-		struct sensor_value accel[3] = {0};
-		imu_manager_read(accel);
-		float ax = sensor_value_to_double(&accel[0]);
-		float ay = sensor_value_to_double(&accel[1]);
-		float az = sensor_value_to_double(&accel[2]);
+		/* Collect 10 IMU samples over 100ms window */
+		float sum_sq = 0.0f;
+		float peak_mag = 0.0f;
+		float last_ax = 0.0f, last_ay = 0.0f, last_az = 0.0f;
+		
+		for (int i = 0; i < 10; i++) {
+			struct sensor_value accel[3] = {0};
+			if (imu_manager_read(accel) == 0) {
+				float ax = sensor_value_to_double(&accel[0]);
+				float ay = sensor_value_to_double(&accel[1]);
+				float az = sensor_value_to_double(&accel[2]);
+				float mag = sqrt(ax*ax + ay*ay + az*az);
+				sum_sq += mag * mag;
+				if (mag > peak_mag) peak_mag = mag;
+				last_ax = ax; last_ay = ay; last_az = az;
+			}
+			k_msleep(10);
+		}
+		
+		float rms = sqrt(sum_sq / 10.0f);
 		
 		uint8_t bands[FFT_BANDS] = {0};
+		uint8_t audio_peak = 0;
 		void *audio_buf = NULL;
 		size_t audio_size = 0;
 		int ret = pdm_handler_read(&audio_buf, &audio_size, 200);
 		if (ret == 0 && audio_buf && audio_size >= BLOCK_SIZE_BYTES) {
 			dsp_processor_compute_fft((int16_t *)audio_buf, BLOCK_SIZE_BYTES / 2, bands);
+			for (int i = 0; i < FFT_BANDS; i++) {
+				if (bands[i] > audio_peak) audio_peak = bands[i];
+			}
 		}
 		
 		power_control_sensors_off();
 		
+		/* Enhanced payload: timestamp, last accel values, RMS, Peak, FFT bands, audio peak */
 		int len = snprintf(buf, sizeof(buf),
-		                   "{\"t\":%u,\"a\":[%.2f,%.2f,%.2f],\"f\":[" ,
-		                   k_uptime_get_32(), (double)ax, (double)ay, (double)az);
+		                   "{\"t\":%u,\"a\":[%.2f,%.2f,%.2f],\"rms\":%.3f,\"peak\":%.3f,\"apeak\":%u,\"f\":[" ,
+		                   k_uptime_get_32(), last_ax, last_ay, last_az, rms, peak_mag, audio_peak);
 		
 		for (int i = 0; i < FFT_BANDS && len < sizeof(buf) - 10; i++) {
 			len += snprintf(buf + len, sizeof(buf) - len, "%s%u", i ? "," : "", bands[i]);
@@ -244,7 +265,7 @@ static void industry_thread_fn(void)
 		len += snprintf(buf + len, sizeof(buf) - len, "]}");
 		
 		ble_service_send_data((uint8_t *)buf, len);
-		LOG_INF("Industry: sent %d bytes", len);
+		LOG_INF("Industry: RMS=%.3f Peak=%.3f APeak=%u (%d bytes)", rms, peak_mag, audio_peak, len);
 	}
 }
 

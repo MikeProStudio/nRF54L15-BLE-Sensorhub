@@ -6,6 +6,7 @@
 LOG_MODULE_REGISTER(imu_manager, LOG_LEVEL_INF);
 
 static const struct device *imu_dev = DEVICE_DT_GET(DT_NODELABEL(lsm6dso));
+static int odr_configured = 0;
 
 int imu_manager_init(void)
 {
@@ -15,6 +16,46 @@ int imu_manager_init(void)
 	}
 	
 	LOG_INF("IMU manager initialized");
+	return 0;
+}
+
+int imu_manager_reinit(void)
+{
+	if (!imu_dev || !device_is_ready(imu_dev)) {
+		LOG_ERR("IMU device not ready for reinit");
+		return -ENODEV;
+	}
+	
+	/* LSM6DS3TR-C requires 15ms boot time after power-on */
+	k_sleep(K_MSEC(15));
+	
+	/* Reset ODR configuration flag to force re-init */
+	odr_configured = 0;
+	
+	/* Configure ODR to 104 Hz */
+	struct sensor_value odr_attr;
+	odr_attr.val1 = 104;
+	odr_attr.val2 = 0;
+	int ret = sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ,
+	                          SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr);
+	if (ret < 0) {
+		LOG_ERR("Failed to set ODR: %d", ret);
+		return ret;
+	}
+	
+	/* Configure full-scale range to ±4g */
+	struct sensor_value fs_attr;
+	fs_attr.val1 = 4;
+	fs_attr.val2 = 0;
+	ret = sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ,
+	                      SENSOR_ATTR_FULL_SCALE, &fs_attr);
+	if (ret < 0) {
+		LOG_ERR("Failed to set full-scale: %d", ret);
+		return ret;
+	}
+	
+	odr_configured = 1;
+	LOG_INF("IMU re-initialized (ODR=104Hz, FS=4g)");
 	return 0;
 }
 

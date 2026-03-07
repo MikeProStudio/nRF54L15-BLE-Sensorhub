@@ -198,6 +198,76 @@
         .battery-low { color: #ff3333; }
         .battery-mid { color: #ffcc00; }
 
+        /* Industry Mode Sleep State */
+        .panel.sleeping {
+            opacity: 0.2;
+            transition: opacity 1.5s ease-out;
+        }
+        .panel.active {
+            opacity: 1;
+            transition: opacity 0.3s ease-in;
+        }
+
+        /* Last Result Panel - Industry Mode */
+        .last-result-panel {
+            background: rgba(0, 20, 0, 0.85);
+            border: 2px solid rgba(0,255,65,0.4);
+            border-radius: 4px;
+            padding: 20px;
+            margin-top: 16px;
+            display: none;
+        }
+        .last-result-title {
+            font-size: 12px;
+            color: #00bb30;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .result-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0,255,65,0.05);
+            border: 1px solid rgba(0,255,65,0.2);
+            border-radius: 3px;
+        }
+        .result-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #00ff41;
+            text-shadow: 0 0 15px rgba(0,255,65,0.8);
+            margin-bottom: 5px;
+        }
+        .result-label {
+            font-size: 10px;
+            color: #006620;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .result-timestamp {
+            text-align: center;
+            font-size: 10px;
+            color: #00bb30;
+            margin-top: 10px;
+        }
+        .countdown-timer {
+            text-align: center;
+            font-size: 14px;
+            color: #00ff41;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,255,65,0.08);
+            border-radius: 3px;
+            border: 1px solid rgba(0,255,65,0.2);
+        }
+
         /* RMS Bar */
         .rms-container { margin-top: 10px; }
         .rms-bar-bg { width: 100%; height: 8px; background: rgba(0,255,65,0.08); border-radius: 2px; overflow: hidden; border: 1px solid rgba(0,255,65,0.15); }
@@ -345,6 +415,27 @@
                     <div class="stat-box"><div class="stat-value battery-indicator" id="battery-level">--</div><div class="stat-label">Battery %</div></div>
                 </div>
             </div>
+
+            <!-- Last Result Panel - Industry Mode -->
+            <div class="last-result-panel" id="last-result-panel">
+                <div class="last-result-title">&gt; Last Measurement Results</div>
+                <div class="result-grid">
+                    <div class="result-item">
+                        <div class="result-value" id="result-rms">--</div>
+                        <div class="result-label">Vibration RMS</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value" id="result-peak">--</div>
+                        <div class="result-label">Vibration Peak</div>
+                    </div>
+                    <div class="result-item">
+                        <div class="result-value" id="result-audio">--</div>
+                        <div class="result-label">Audio Peak dB</div>
+                    </div>
+                </div>
+                <div class="result-timestamp" id="result-timestamp">Waiting for first measurement...</div>
+                <div class="countdown-timer" id="countdown-timer">Next measurement in: --</div>
+            </div>
         </div>
     </div>
 
@@ -365,6 +456,12 @@
         let reconnectAttempts = 0;
         const MAX_RECONNECT = 5;
         const textDecoder = new TextDecoder();  // single global instance, no per-notification alloc
+
+        // Industry Mode state
+        let currentMode = 1; // 1 = continuous, 0 = industry
+        let lastMeasurementTime = 0;
+        let countdownInterval = null;
+        const INDUSTRY_INTERVAL_MS = 10000; // 10 seconds
 
         const FFT_BANDS = 32;
         const freqLabels = [
@@ -1001,6 +1098,7 @@
         async function setMode(mode) {
             if (!controlChar) return;
             
+            currentMode = mode;
             const value = new Uint8Array([mode]);
             await controlChar.writeValue(value);
             
@@ -1008,10 +1106,17 @@
             document.getElementById('mode-industry').classList.toggle('active', mode === 0);
             
             const status = document.getElementById('mode-status');
+            const lastResultPanel = document.getElementById('last-result-panel');
+            
             if (mode === 0) {
                 status.innerHTML = '💤 Power-save: 10s interval';
+                lastResultPanel.style.display = 'block';
+                document.querySelectorAll('.panel').forEach(p => { p.classList.add('sleeping'); p.classList.remove('active'); });
             } else {
                 status.innerHTML = '⚡ Continuous streaming';
+                lastResultPanel.style.display = 'none';
+                if (countdownInterval) clearInterval(countdownInterval);
+                document.querySelectorAll('.panel').forEach(p => { p.classList.remove('sleeping', 'active'); });
             }
         }
 
