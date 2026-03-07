@@ -1,0 +1,13 @@
+#ifndef IMU_MANAGER_H
+#define IMU_MANAGER_H
+
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/sensor.h>
+
+int imu_manager_init(void);
+int imu_manager_start(void);
+int imu_manager_stop(void);
+int imu_manager_read(struct sensor_value accel[3]);
+bool imu_manager_is_ready(void);
+
+#endif

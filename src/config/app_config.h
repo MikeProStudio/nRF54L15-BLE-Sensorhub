@@ -1,0 +1,26 @@
+#ifndef APP_CONFIG_H
+#define APP_CONFIG_H
+
+#define AUDIO_SAMPLE_FREQ   16000
+#define FFT_SIZE            512
+#define FFT_BINS            (FFT_SIZE / 2)
+#define FFT_BANDS           32
+#define BYTES_PER_SAMPLE    2
+#define BLOCK_SIZE_BYTES    (FFT_SIZE * BYTES_PER_SAMPLE)
+#define BLOCK_COUNT         8
+
+#define UART_INTERVAL_MS    1000
+
+#define MODE_INDUSTRY       0
+#define MODE_CONTINUOUS     1
+
+#define INDUSTRY_SLEEP_SEC      10
+#define INDUSTRY_IMU_DURATION   200
+#define INDUSTRY_AUDIO_DURATION 500
+
+#define WATCHDOG_TIMEOUT_MS 30000
+
+#define BATTERY_UPDATE_INTERVAL_SEC 60
+#define BATTERY_CHANGE_THRESHOLD    5
+
+#endif

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XIAO nRF54L15 Dashboard</title>
+    <title>nRF54L15 Sense Dashboard</title>
     <!-- Chart.js REMOVED – Canvas 2D renderers for all charts (zero-overhead) -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -151,6 +151,53 @@
         .stat-value { font-size: 18px; font-weight: 400; color: #00ff41; text-shadow: 0 0 10px rgba(0,255,65,0.5); }
         .stat-label { font-size: 9px; color: #006620; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 
+        /* Mode Control */
+        .mode-control {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,10,0,0.95);
+            border: 1px solid rgba(0,255,65,0.3);
+            border-radius: 4px;
+            padding: 12px;
+            z-index: 10;
+        }
+        .mode-label {
+            font-size: 9px;
+            color: #006620;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .mode-switch {
+            display: flex;
+            gap: 6px;
+        }
+        .mode-btn {
+            padding: 8px 12px;
+            font-size: 10px;
+            border: 1px solid #006620;
+            background: rgba(0,255,65,0.05);
+            flex: 1;
+        }
+        .mode-btn.active {
+            background: rgba(0,255,65,0.2);
+            border-color: #00ff41;
+            box-shadow: 0 0 15px rgba(0,255,65,0.4);
+        }
+        .mode-status {
+            margin-top: 8px;
+            font-size: 9px;
+            color: #00bb30;
+            text-align: center;
+        }
+        .battery-indicator {
+            color: #00ff41;
+        }
+        .battery-low { color: #ff3333; }
+        .battery-mid { color: #ffcc00; }
+
         /* RMS Bar */
         .rms-container { margin-top: 10px; }
         .rms-bar-bg { width: 100%; height: 8px; background: rgba(0,255,65,0.08); border-radius: 2px; overflow: hidden; border: 1px solid rgba(0,255,65,0.15); }
@@ -234,6 +281,15 @@
 
 <body>
     <div class="container">
+        <div class="mode-control" id="mode-control" style="display:none;">
+            <div class="mode-label">OPERATION MODE</div>
+            <div class="mode-switch">
+                <button id="mode-continuous" class="mode-btn active">🔴 LIVE</button>
+                <button id="mode-industry" class="mode-btn">🟢 SAVE</button>
+            </div>
+            <div id="mode-status" class="mode-status">⚡ Continuous streaming</div>
+        </div>
+        
         <h1>// XIAO nRF54L15 SENSORHUB //</h1>
         <div class="btn-container">
             <button id="btn">[ CONNECT ]</button>
@@ -286,6 +342,7 @@
                     <div class="stat-box"><div class="stat-value" id="imu-x">0.00</div><div class="stat-label">X m/s²</div></div>
                     <div class="stat-box"><div class="stat-value" id="imu-y">0.00</div><div class="stat-label">Y m/s²</div></div>
                     <div class="stat-box"><div class="stat-value" id="imu-z">0.00</div><div class="stat-label">Z m/s²</div></div>
+                    <div class="stat-box"><div class="stat-value battery-indicator" id="battery-level">--</div><div class="stat-label">Battery %</div></div>
                 </div>
             </div>
         </div>
@@ -296,7 +353,13 @@
     <script>
         const UUID_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
         const UUID_TX      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+        const UUID_CONTROL_SERVICE = '22d08ffc-229c-4f6e-beeb-074e46fd3cc0';
+        const UUID_CONTROL_CHAR    = '22d08ffc-229c-4f6e-beeb-074e46fd3cc1';
+        const UUID_BAS = '0000180f-0000-1000-8000-00805f9b34fb';
+        const UUID_BATTERY_LEVEL = '00002a19-0000-1000-8000-00805f9b34fb';
         let device, server, service, char;
+        let controlChar = null;
+        let batteryChar = null;
         let autoReconnect = false;
         let reconnectTimer = null;
         let reconnectAttempts = 0;
@@ -613,6 +676,7 @@
             fftCtx = fftCanvas.getContext('2d', { alpha: false });
             resizeFftCanvas();
             window.addEventListener('resize', resizeFftCanvas);
+            drawFft(new Uint8Array(FFT_BANDS), new Uint8Array(FFT_BANDS));
         }
         function resizeFftCanvas() {
             const wrap = fftCanvas.parentElement;
@@ -725,6 +789,7 @@
             imuC2d = imuCvs.getContext('2d', { alpha: false });
             resizeImuCanvas();
             window.addEventListener('resize', resizeImuCanvas);
+            drawImu();
         }
         function resizeImuCanvas() {
             const wrap = imuCvs.parentElement;
@@ -931,6 +996,50 @@
         }
 
         // =======================================================================
+        // Mode Control & Battery Functions
+        // =======================================================================
+        async function setMode(mode) {
+            if (!controlChar) return;
+            
+            const value = new Uint8Array([mode]);
+            await controlChar.writeValue(value);
+            
+            document.getElementById('mode-continuous').classList.toggle('active', mode === 1);
+            document.getElementById('mode-industry').classList.toggle('active', mode === 0);
+            
+            const status = document.getElementById('mode-status');
+            if (mode === 0) {
+                status.innerHTML = '💤 Power-save: 10s interval';
+            } else {
+                status.innerHTML = '⚡ Continuous streaming';
+            }
+        }
+
+        function handleModeNotification(e) {
+            const mode = e.target.value.getUint8(0);
+            setMode(mode);
+        }
+
+        function handleBatteryNotification(e) {
+            const level = e.target.value.getUint8(0);
+            updateBatteryUI(level);
+        }
+
+        function updateBatteryUI(level) {
+            const elem = document.getElementById('battery-level');
+            elem.textContent = level + '%';
+            
+            elem.classList.remove('battery-low', 'battery-mid', 'battery-indicator');
+            if (level > 50) {
+                elem.classList.add('battery-indicator');
+            } else if (level > 20) {
+                elem.classList.add('battery-mid');
+            } else {
+                elem.classList.add('battery-low');
+            }
+        }
+
+        // =======================================================================
         // BLE connect
         // =======================================================================
         async function connectGatt() {
@@ -939,6 +1048,30 @@
             char    = await service.getCharacteristic(UUID_TX);
             await char.startNotifications();
             char.addEventListener('characteristicvaluechanged', handleNotification);
+            
+            try {
+                const controlService = await server.getPrimaryService(UUID_CONTROL_SERVICE);
+                controlChar = await controlService.getCharacteristic(UUID_CONTROL_CHAR);
+                await controlChar.startNotifications();
+                controlChar.addEventListener('characteristicvaluechanged', handleModeNotification);
+                const initialMode = await controlChar.readValue();
+                setMode(initialMode.getUint8(0));
+                document.getElementById('mode-control').style.display = 'block';
+            } catch(e) {
+                console.warn('Control service not available:', e);
+            }
+            
+            try {
+                const basService = await server.getPrimaryService(UUID_BAS);
+                batteryChar = await basService.getCharacteristic(UUID_BATTERY_LEVEL);
+                await batteryChar.startNotifications();
+                batteryChar.addEventListener('characteristicvaluechanged', handleBatteryNotification);
+                const initialBattery = await batteryChar.readValue();
+                updateBatteryUI(initialBattery.getUint8(0));
+            } catch(e) {
+                console.warn('Battery service not available:', e);
+            }
+            
             const s = document.getElementById('status');
             s.innerText = '> CONNECTED :: 32 bands 78Hz–7.4kHz :: 20fps';
             s.classList.add('connected');
@@ -950,7 +1083,10 @@
         async function connect() {
             try {
                 autoReconnect = true;
-                device = await navigator.bluetooth.requestDevice({ filters: [{ services: [UUID_SERVICE] }] });
+                device = await navigator.bluetooth.requestDevice({ 
+                    filters: [{ services: [UUID_SERVICE] }],
+                    optionalServices: [UUID_CONTROL_SERVICE, UUID_BAS]
+                });
                 device.addEventListener('gattserverdisconnected', onDisconnected);
                 await connectGatt();
             } catch(e) { console.error(e); }
@@ -1027,6 +1163,8 @@
 
         document.getElementById('btn').onclick = connect;
         document.getElementById('disconnect-btn').onclick = disconnect;
+        document.getElementById('mode-continuous').onclick = () => setMode(1);
+        document.getElementById('mode-industry').onclick = () => setMode(0);
     </script>
 </body>
 </html>

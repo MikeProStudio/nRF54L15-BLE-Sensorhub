@@ -13,6 +13,20 @@
 
 	aliases {
 		pwm-led0 = &pwm_led_0;
+		sensor-power = &sensor_power;
+		vbat-enable = &vbat_enable;
+	};
+
+	power_control {
+		compatible = "gpio-keys";
+		sensor_power: sensor_power {
+			gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+			label = "Sensor Power Enable";
+		};
+		vbat_enable: vbat_enable {
+			gpios = <&gpio1 15 GPIO_ACTIVE_HIGH>;
+			label = "VBAT ADC Enable";
+		};
 	};
 };
 
@@ -55,6 +69,20 @@ dmic_dev: &pdm20 {
 &gpio0 {
 	/* Remove conflicting gpio-hog */
 	/delete-node/ imu_power_default_on;
+};
+
+&adc {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	
+	channel@7 {
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,resolution = <12>;
+	};
 };
 
 &i2c30 {

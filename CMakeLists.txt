@@ -11,6 +11,25 @@ project(nRF54L15_peripheral_uart)
 # NORDIC SDK APP START
 target_sources(app PRIVATE
   src/main.c
+  src/hardware/power_control.c
+  src/hardware/pdm_handler.c
+  src/hardware/imu_manager.c
+  src/processing/dsp_processor.c
+  src/bluetooth/ble_service.c
+  src/bluetooth/ble_bas.c
+  src/bluetooth/ble_dis.c
+  src/system/battery_monitor.c
+  src/system/power_manager.c
+  src/system/watchdog.c
+)
+
+target_include_directories(app PRIVATE
+  src/
+  src/hardware/
+  src/processing/
+  src/bluetooth/
+  src/system/
+  src/config/
 )
 
 # NORDIC SDK APP END
