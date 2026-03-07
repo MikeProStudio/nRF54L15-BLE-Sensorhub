@@ -89,7 +89,7 @@ static void audio_thread_fn(void)
 			
 			if (power_manager_get_mode() == MODE_CONTINUOUS) {
 				int idx = atomic_get(&fft_ready_idx);
-				memcpy(fft_buf[idx], bands, FFT_BANDS);
+				memcpy(fft_buf[idx], bands, FFT_BANDS + 1);  // Copy all 33 bytes (0xFF + 32 bands)
 				atomic_set(&fft_ready_idx, 1 - idx);
 				k_sem_give(&ble_tx_sem);
 			}
