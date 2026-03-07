@@ -93,7 +93,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 				BT_GAP_MS_TO_CONN_INTERVAL(15),
 				BT_GAP_MS_TO_CONN_INTERVAL(30),
 				0,
-				400);
+				1500);  // 15s timeout for 10s Industry Mode interval
 		bt_conn_le_param_update(conn, &fast_ci);
 		
 		LOG_INF("BLE connected");
