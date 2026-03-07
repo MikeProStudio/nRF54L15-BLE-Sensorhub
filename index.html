@@ -697,21 +697,6 @@
             wfCtx.drawImage(wfCanvas, 0, 0, wfW, wfH - WF_ROW_H, 0, WF_ROW_H, wfW, wfH - WF_ROW_H);
 
             // Allocate row buffer once; reallocate only after canvas resize
-            if (!wfRowBuf || wfRowBuf.width !== wfW) {
-                wfRowBuf = wfCtx.createImageData(wfW, WF_ROW_H);
-                for (let i = 3; i < wfRowBuf.data.length; i += 4) wfRowBuf.data[i] = 255;
-            }
-            const px = wfRowBuf.data;
-            const bw = wfW / FFT_BANDS;
-            // Direct pixel write - discrete bands to match FFT bar chart (no interpolation)
-            for (let x = 0; x < wfW; x++) {
-                const bandIdx = Math.min(FFT_BANDS - 1, Math.floor(x / bw));
-                const v   = (bandData[bandIdx] || 0);
-                const pi  = ((v < 0 ? 0 : v > 255 ? 255 : v) | 0) * 3;
-                const xi  = x << 2;           // x * 4
-                px[xi]   = NEON_PALETTE[pi];
-                px[xi+1] = NEON_PALETTE[pi+1];
-                px[xi+2] = NEON_PALETTE[pi+2];
             }
             // Replicate row 0 into remaining WF_ROW_H-1 rows
             const rb = wfW << 2;
