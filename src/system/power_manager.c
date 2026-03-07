@@ -1,10 +1,9 @@
 #include "power_manager.h"
 #include "power_control.h"
-#include "../threads/audio_thread.h"
-#include "../threads/sensor_thread.h"
+#include "app_config.h"
 #include "../hardware/imu_manager.h"
-#include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(power_manager, LOG_LEVEL_INF);
 
