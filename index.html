@@ -703,13 +703,10 @@
             }
             const px = wfRowBuf.data;
             const bw = wfW / FFT_BANDS;
-            // Direct pixel write with linear interpolation – zero string allocs
+            // Direct pixel write - discrete bands to match FFT bar chart (no interpolation)
             for (let x = 0; x < wfW; x++) {
-                const fb  = (x + 0.5) / bw;
-                const b0  = fb | 0;
-                const b1  = b0 < FFT_BANDS - 1 ? b0 + 1 : b0;
-                const fr  = fb - b0;
-                const v   = ((bandData[b0] * (1 - fr) + bandData[b1] * fr) + 0.5) | 0;
+                const bandIdx = Math.min(FFT_BANDS - 1, Math.floor(x / bw));
+                const v   = bandData[bandIdx];
                 const pi  = (v < 0 ? 0 : v > 255 ? 255 : v) * 3;
                 const xi  = x << 2;           // x * 4
                 px[xi]   = NEON_PALETTE[pi];
