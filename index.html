@@ -1069,33 +1069,22 @@
             requestAnimationFrame(renderLoop);
         }
 
-        // =======================================================================
-        // BLE notification handler – named function prevents GC of listener ref
-        // and deduplicates when re-added on auto-reconnect
-        // =======================================================================
-        function handleNotification(e) {
-            const v = e.target.value;
-            if (v.getUint8(0) === 0xFF) {
-                let peakVal = 0, peakIdx = 3;
-                for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
-                    const val = v.getUint8(i);
-                    fftData[i-1] = val;
-                    if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
-                }
-                peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
-                fftDirty = true;
-            } else {
-                try {
-                    const d = JSON.parse(textDecoder.decode(v));
-                    if (d.a) { imuLatest = d; imuDirty = true; }
-                } catch(err) {}
-            }
-        }
-
-        // =======================================================================
-        // Mode Control & Battery Functions
-        // =======================================================================
-        async function setMode(mode) {
+            // =======================================================================
+            // BLE notification handler – named function prevents GC of listener ref
+            // and deduplicates when re-added on auto-reconnect
+            // =======================================================================
+            function handleNotification(e) {
+                const v = e.target.value;
+                if (v.getUint8(0) === 0xFF) {
+                    let peakVal = 0, peakIdx = 3;
+                    for (let i = 1; i < v.byteLength && i <= FFT_BANDS; i++) {
+                        const val = v.getUint8(i);
+                        fftData[i-1] = val;
+                        if (i > 3 && val > peakVal) { peakVal = val; peakIdx = i-1; }
+                    }
+                    peakFreqLabel = peakVal > 20 ? freqLabels[peakIdx] + ' Hz' : '---';
+                    fftDirty = true;
+                } else {
             if (!controlChar) return;
             
             currentMode = mode;
