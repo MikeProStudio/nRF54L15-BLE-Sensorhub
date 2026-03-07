@@ -216,7 +216,6 @@ static void industry_thread_fn(void)
 		
 		power_control_sensors_on();
 		k_msleep(100);
-		imu_manager_reinit();
 		
 		/* Collect 10 IMU samples over 100ms window */
 		float sum_sq = 0.0f;

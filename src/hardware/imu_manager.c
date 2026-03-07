@@ -7,6 +7,7 @@ LOG_MODULE_REGISTER(imu_manager, LOG_LEVEL_INF);
 
 static const struct device *imu_dev = DEVICE_DT_GET(DT_NODELABEL(lsm6dso));
 static int odr_configured = 0;
+static int odr_set = 0;
 
 int imu_manager_init(void)
 {
@@ -64,6 +65,9 @@ int imu_reinit(void)
 	/* LSM6DS3TR-C requires 15ms boot time after power-on */
 	k_sleep(K_MSEC(15));
 	
+	/* Reset odr_set flag - next imu_manager_read() will reconfigure */
+	odr_set = 0;
+	
 	LOG_INF("IMU re-init (lightweight)");
 	return 0;
 }
@@ -82,7 +86,6 @@ int imu_manager_stop(void)
 
 int imu_manager_read(struct sensor_value accel[3])
 {
-	static int odr_set = 0;
 	static int first_read = 1;
 	
 	if (!odr_set) {
