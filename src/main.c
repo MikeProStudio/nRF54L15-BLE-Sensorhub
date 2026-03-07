@@ -215,12 +215,17 @@ static void industry_thread_fn(void)
 		LOG_INF("Industry: wake for sample");
 		
 		power_control_sensors_on();
-		imu_reinit();  // Re-init IMU after power cycle (15ms delay + reset odr_set)
+		k_msleep(20);  // IMU boot time (LSM6DS3TR-C needs 15ms)
 		
 		/* Collect 10 IMU samples over 100ms window */
 		float sum_sq = 0.0f;
 		float peak_mag = 0.0f;
 		float last_ax = 0.0f, last_ay = 0.0f, last_az = 0.0f;
+		
+		/* First read triggers ODR reconfiguration (odr_set flag in imu_manager_read) */
+		struct sensor_value dummy[3];
+		imu_manager_read(dummy);
+		k_msleep(10);
 		
 		for (int i = 0; i < 10; i++) {
 			struct sensor_value accel[3] = {0};
